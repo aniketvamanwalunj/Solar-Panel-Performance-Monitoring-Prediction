@@ -8,22 +8,21 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 from pmdarima import auto_arima
 from datetime import datetime, timedelta
 from statsmodels.tsa.seasonal import seasonal_decompose
-import os
 
-# Direct file path
-file_path = "solar_data.csv"  # Replace with your file path
-
-# File load functionality
-def load_data(file):
-    df = pd.read_csv(file)  # Load the file directly
+# Load Data
+@st.cache_data
+def load_data():
+    df = pd.read_csv("solar_data.csv")  # Change this to your actual file name
     df["date"] = pd.date_range(start="2025-01-01", periods=len(df), freq='H')  # Start from 2025-01-01
     df.set_index("date", inplace=True)
     return df
 
+df = load_data()
+
 # Streamlit Dashboard
 st.title("🔆 Solar Panel Performance Monitoring & Prediction")
 
-# Sidebar for Model Input
+# Sidebar for User Input
 st.sidebar.title("Model Parameters")
 model_option = st.sidebar.selectbox("Select Model", ["ARIMA", "SARIMA"])
 
@@ -35,7 +34,7 @@ if model_option == "ARIMA":
     q = st.sidebar.slider("q (MA order)", 0, 5, 1)
     
     # Dynamic Best ARIMA Order based on user input
-    st.sidebar.write(f"Best ARIMA Order : ({p}, {d}, {q})")
+    st.sidebar.write(f"Best ARIMA Order : ({p}, {d}, {q})")  # Showing user-defined parameters
 
 elif model_option == "SARIMA":
     st.sidebar.subheader("SARIMA Model Parameters")
@@ -45,10 +44,7 @@ elif model_option == "SARIMA":
     s = st.sidebar.slider("S (Seasonal Periodicity)", 12, 24, 24)  # Adjust based on seasonality
     
     # Dynamic Best SARIMA Order based on user input
-    st.sidebar.write(f"Best SARIMA Order : ({p}, {d}, {q}, {s})")
-
-# Load data directly from the file
-df = load_data(file_path)
+    st.sidebar.write(f"Best SARIMA Order : ({p}, {d}, {q}, {s})")  # Showing user-defined parameters
 
 # Data Preview
 if st.checkbox("Show Raw Data"):
@@ -77,15 +73,8 @@ except ValueError:
     # Use additive decomposition if multiplicative fails due to negative/zero values
     decomposition = seasonal_decompose(df['power-generated'], model='additive', period=24)
 
-# Plot decomposition
-st.subheader("🔍 Decomposition of Power Generation")
-fig1, ax1 = plt.subplots(figsize=(12, 6))
-ax1.plot(decomposition.trend, label="Trend")
-ax1.plot(decomposition.seasonal, label="Seasonal", color='orange')
-ax1.plot(decomposition.resid, label="Residuals", color='green')
-ax1.set_title("Decomposition of Power Generation")
-ax1.legend()
-st.pyplot(fig1)
+# Remove graph related to Power Generation
+# The graph that followed the "Power Generated" data has been removed in this section.
 
 # Define User-selected Model (ARIMA or SARIMA)
 if model_option == "ARIMA":
