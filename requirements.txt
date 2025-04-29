@@ -1,7 +1,8 @@
 pandas==1.5.3
-numpy==1.23.5  # Downgrade to avoid issues with seaborn and statsmodels compatibility
+numpy==1.23.5
 matplotlib==3.7.1
 seaborn==0.12.2
 streamlit==1.19.0
 statsmodels==0.13.5
 pmdarima==2.0.0
+scikit-learn==1.1.3  # Added to ensure pmdarima works smoothly
