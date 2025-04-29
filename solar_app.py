@@ -5,7 +5,6 @@ import seaborn as sns
 import streamlit as st
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
-from pmdarima import auto_arima
 from datetime import datetime, timedelta
 from statsmodels.tsa.seasonal import seasonal_decompose
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
