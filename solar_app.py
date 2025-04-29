@@ -10,9 +10,12 @@ from datetime import datetime, timedelta
 from statsmodels.tsa.seasonal import seasonal_decompose
 import os
 
-# File upload functionality for deployment
+# Direct file path
+file_path = "solar_data.csv"  # Replace with your file path
+
+# File load functionality
 def load_data(file):
-    df = pd.read_csv(file)  # Load file from user upload
+    df = pd.read_csv(file)  # Load the file directly
     df["date"] = pd.date_range(start="2025-01-01", periods=len(df), freq='H')  # Start from 2025-01-01
     df.set_index("date", inplace=True)
     return df
@@ -20,7 +23,7 @@ def load_data(file):
 # Streamlit Dashboard
 st.title("🔆 Solar Panel Performance Monitoring & Prediction")
 
-# Sidebar for User Input
+# Sidebar for Model Input
 st.sidebar.title("Model Parameters")
 model_option = st.sidebar.selectbox("Select Model", ["ARIMA", "SARIMA"])
 
@@ -44,115 +47,110 @@ elif model_option == "SARIMA":
     # Dynamic Best SARIMA Order based on user input
     st.sidebar.write(f"Best SARIMA Order : ({p}, {d}, {q}, {s})")
 
-# File uploader for solar data CSV file
-st.sidebar.subheader("Upload Solar Data CSV")
-uploaded_file = st.sidebar.file_uploader("Choose a CSV file", type=["csv"])
+# Load data directly from the file
+df = load_data(file_path)
 
-# Handle file upload and load data
-if uploaded_file is not None:
-    df = load_data(uploaded_file)
-    
-    # Data Preview
-    if st.checkbox("Show Raw Data"):
-        st.write(df.head())
+# Data Preview
+if st.checkbox("Show Raw Data"):
+    st.write(df.head())
 
-    # Check Stationarity (Dickey-Fuller Test)
-    from statsmodels.tsa.stattools import adfuller
-    def adf_test(series):
-        result = adfuller(series)
-        return result[1]  # p-value
+# Check Stationarity (Dickey-Fuller Test)
+from statsmodels.tsa.stattools import adfuller
+def adf_test(series):
+    result = adfuller(series)
+    return result[1]  # p-value
 
-    st.subheader("📉 Checking Stationarity of Data")
-    p_value = adf_test(df["power-generated"])
-    if p_value < 0.05:
-        st.write("✅ Data is Stationary (p-value:", p_value, ")")
-    else:
-        st.write("❌ Data is NOT Stationary (p-value:", p_value, ") - Differencing Needed")
-        df['power-generated'] = df['power-generated'].diff().dropna()
+st.subheader("📉 Checking Stationarity of Data")
+p_value = adf_test(df["power-generated"])
+if p_value < 0.05:
+    st.write("✅ Data is Stationary (p-value:", p_value, ")")
+else:
+    st.write("❌ Data is NOT Stationary (p-value:", p_value, ") - Differencing Needed")
+    df['power-generated'] = df['power-generated'].diff().dropna()
 
-    # Decomposing Power Generation into Trend, Seasonality, and Residuals
-    try:
-        # Use additive decomposition if there are negative/zero values in the data
-        df['power-generated'] = df['power-generated'].apply(lambda x: x if x > 0 else 0.001)  # Fix negative values for multiplicative
-        decomposition = seasonal_decompose(df['power-generated'], model='multiplicative', period=24)  # Using 'multiplicative' for positive data
-    except ValueError:
-        # Use additive decomposition if multiplicative fails due to negative/zero values
-        decomposition = seasonal_decompose(df['power-generated'], model='additive', period=24)
+# Decomposing Power Generation into Trend, Seasonality, and Residuals
+try:
+    # Use additive decomposition if there are negative/zero values in the data
+    df['power-generated'] = df['power-generated'].apply(lambda x: x if x > 0 else 0.001)  # Fix negative values for multiplicative
+    decomposition = seasonal_decompose(df['power-generated'], model='multiplicative', period=24)  # Using 'multiplicative' for positive data
+except ValueError:
+    # Use additive decomposition if multiplicative fails due to negative/zero values
+    decomposition = seasonal_decompose(df['power-generated'], model='additive', period=24)
 
-    # Plot decomposition
-    st.subheader("🔍 Decomposition of Power Generation")
-    fig1, ax1 = plt.subplots(figsize=(12, 6))
-    ax1.plot(decomposition.trend, label="Trend")
-    ax1.plot(decomposition.seasonal, label="Seasonal", color='orange')
-    ax1.plot(decomposition.resid, label="Residuals", color='green')
-    ax1.set_title("Decomposition of Power Generation")
-    ax1.legend()
-    st.pyplot(fig1)
+# Plot decomposition
+st.subheader("🔍 Decomposition of Power Generation")
+fig1, ax1 = plt.subplots(figsize=(12, 6))
+ax1.plot(decomposition.trend, label="Trend")
+ax1.plot(decomposition.seasonal, label="Seasonal", color='orange')
+ax1.plot(decomposition.resid, label="Residuals", color='green')
+ax1.set_title("Decomposition of Power Generation")
+ax1.legend()
+st.pyplot(fig1)
 
-    # Define User-selected Model (ARIMA or SARIMA)
-    if model_option == "ARIMA":
-        st.subheader("🔧 Using User-defined ARIMA Parameters")
-        model = ARIMA(df['power-generated'].dropna(), order=(p, d, q))
-        model_fit = model.fit()
+# Define User-selected Model (ARIMA or SARIMA)
+if model_option == "ARIMA":
+    st.subheader("🔧 Using User-defined ARIMA Parameters")
+    model = ARIMA(df['power-generated'].dropna(), order=(p, d, q))
+    model_fit = model.fit()
 
-        # Forecasting
-        st.subheader("📈 Future Power Prediction")
-        n_periods = st.slider("Select Forecast Period (hours)", 1, 48, 24)
-        forecast = model_fit.forecast(steps=n_periods)
+    # Forecasting
+    st.subheader("📈 Future Power Prediction")
+    n_periods = st.slider("Select Forecast Period (hours)", 1, 48, 24)
+    forecast = model_fit.forecast(steps=n_periods)
 
-        # Generate Future Dates
-        dates_future = [df.index[-1] + timedelta(hours=i) for i in range(1, n_periods+1)]
-        forecast_df = pd.DataFrame({"date": dates_future, "predicted_power": forecast})
-        st.write(forecast_df)
+    # Generate Future Dates
+    dates_future = [df.index[-1] + timedelta(hours=i) for i in range(1, n_periods+1)]
+    forecast_df = pd.DataFrame({"date": dates_future, "predicted_power": forecast})
+    st.write(forecast_df)
 
-        # Plot Forecast (Line Plot with Predictions)
-        st.subheader("📈 Future Power Prediction")
+    # Plot Forecast (Line Plot with Predictions)
+    st.subheader("📈 Future Power Prediction")
 
-        # Plot actual vs forecasted data
-        fig2, ax2 = plt.subplots(figsize=(12, 6))
-        ax2.plot(forecast_df["date"], forecast_df["predicted_power"], label='Forecasted Power', color='red', marker='x')
+    # Plot actual vs forecasted data
+    fig2, ax2 = plt.subplots(figsize=(12, 6))
+    ax2.plot(forecast_df["date"], forecast_df["predicted_power"], label='Forecasted Power', color='red', marker='x')
 
-        # Labeling and adding a title
-        ax2.set_xlabel("Time")
-        ax2.set_ylabel("Power Generated (W)")
-        ax2.set_title("Forecasted Power Generation")
-        ax2.legend()
+    # Labeling and adding a title
+    ax2.set_xlabel("Time")
+    ax2.set_ylabel("Power Generated (W)")
+    ax2.set_title("Forecasted Power Generation")
+    ax2.legend()
 
-        # Add grid
-        ax2.grid(True, which='both', linestyle='--', linewidth=0.5)
+    # Add grid
+    ax2.grid(True, which='both', linestyle='--', linewidth=0.5)
 
-        st.pyplot(fig2)
+    st.pyplot(fig2)
 
-    elif model_option == "SARIMA":
-        st.subheader("🔧 Using User-defined SARIMA Parameters")
-        seasonal_order = (p, d, q, s)
-        sarima_model = SARIMAX(df['power-generated'].dropna(), order=(p, d, q), seasonal_order=seasonal_order)
-        sarima_model_fit = sarima_model.fit()
+elif model_option == "SARIMA":
+    st.subheader("🔧 Using User-defined SARIMA Parameters")
+    seasonal_order = (p, d, q, s)
+    sarima_model = SARIMAX(df['power-generated'].dropna(), order=(p, d, q), seasonal_order=seasonal_order)
+    sarima_model_fit = sarima_model.fit()
 
-        # Forecasting
-        st.subheader("📈 Future Power Prediction (SARIMA)")
-        n_periods = st.slider("Select Forecast Period (hours)", 1, 48, 24)
-        forecast = sarima_model_fit.forecast(steps=n_periods)
+    # Forecasting
+    st.subheader("📈 Future Power Prediction (SARIMA)")
+    n_periods = st.slider("Select Forecast Period (hours)", 1, 48, 24)
+    forecast = sarima_model_fit.forecast(steps=n_periods)
 
-        # Generate Future Dates
-        dates_future = [df.index[-1] + timedelta(hours=i) for i in range(1, n_periods+1)]
-        forecast_df = pd.DataFrame({"date": dates_future, "predicted_power": forecast})
-        st.write(forecast_df)
+    # Generate Future Dates
+    dates_future = [df.index[-1] + timedelta(hours=i) for i in range(1, n_periods+1)]
+    forecast_df = pd.DataFrame({"date": dates_future, "predicted_power": forecast})
+    st.write(forecast_df)
 
-        # Plot Forecast (Line Plot with Predictions)
-        st.subheader("📈 Future Power Prediction (SARIMA)")
+    # Plot Forecast (Line Plot with Predictions)
+    st.subheader("📈 Future Power Prediction (SARIMA)")
 
-        # Plot actual vs forecasted data
-        fig2, ax2 = plt.subplots(figsize=(12, 6))
-        ax2.plot(forecast_df["date"], forecast_df["predicted_power"], label='Forecasted Power', color='red', marker='x')
+    # Plot actual vs forecasted data
+    fig2, ax2 = plt.subplots(figsize=(12, 6))
+    ax2.plot(forecast_df["date"], forecast_df["predicted_power"], label='Forecasted Power', color='red', marker='x')
 
-        # Labeling and adding a title
-        ax2.set_xlabel("Time")
-        ax2.set_ylabel("Power Generated (W)")
-        ax2.set_title("Forecasted Power Generation (SARIMA)")
-        ax2.legend()
+    # Labeling and adding a title
+    ax2.set_xlabel("Time")
+    ax2.set_ylabel("Power Generated (W)")
+    ax2.set_title("Forecasted Power Generation (SARIMA)")
+    ax2.legend()
 
-        # Add grid
-        ax2.grid(True, which='both', linestyle='--', linewidth=0.5)
+    # Add grid
+    ax2.grid(True, which='both', linestyle='--', linewidth=0.5)
 
-        st.pyplot(fig2)
+    st.pyplot(fig2)
