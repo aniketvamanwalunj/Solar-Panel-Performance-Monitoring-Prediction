@@ -8,6 +8,8 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 from pmdarima import auto_arima
 from datetime import datetime, timedelta
 from statsmodels.tsa.seasonal import seasonal_decompose
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import math
 
 # Load Data
 @st.cache_data
@@ -73,10 +75,14 @@ except ValueError:
     # Use additive decomposition if multiplicative fails due to negative/zero values
     decomposition = seasonal_decompose(df['power-generated'], model='additive', period=24)
 
-# Remove graph related to Power Generation
-# The graph that followed the "Power Generated" data has been removed in this section.
-
 # Define User-selected Model (ARIMA or SARIMA)
+def calculate_accuracy(actual, predicted):
+    mae = mean_absolute_error(actual, predicted)
+    mse = mean_squared_error(actual, predicted)
+    rmse = math.sqrt(mse)
+    r2 = r2_score(actual, predicted)
+    return mae, mse, rmse, r2
+
 if model_option == "ARIMA":
     st.subheader("🔧 Using User-defined ARIMA Parameters")
     model = ARIMA(df['power-generated'].dropna(), order=(p, d, q))
@@ -91,6 +97,17 @@ if model_option == "ARIMA":
     dates_future = [df.index[-1] + timedelta(hours=i) for i in range(1, n_periods+1)]
     forecast_df = pd.DataFrame({"date": dates_future, "predicted_power": forecast})
     st.write(forecast_df)
+
+    # Model Accuracy Calculation (on training data for now)
+    train_actual = df['power-generated'][-n_periods:].dropna()
+    train_predicted = model_fit.fittedvalues[-n_periods:]
+
+    mae, mse, rmse, r2 = calculate_accuracy(train_actual, train_predicted)
+    st.subheader("📊 Model Accuracy (ARIMA)")
+    st.write(f"Mean Absolute Error (MAE): {mae:.2f}")
+    st.write(f"Mean Squared Error (MSE): {mse:.2f}")
+    st.write(f"Root Mean Squared Error (RMSE): {rmse:.2f}")
+    st.write(f"R-Squared (R2): {r2:.2f}")
 
     # Plot Forecast (Line Plot with Predictions)
     st.subheader("📈 Future Power Prediction")
@@ -125,6 +142,17 @@ elif model_option == "SARIMA":
     dates_future = [df.index[-1] + timedelta(hours=i) for i in range(1, n_periods+1)]
     forecast_df = pd.DataFrame({"date": dates_future, "predicted_power": forecast})
     st.write(forecast_df)
+
+    # Model Accuracy Calculation (on training data for now)
+    train_actual = df['power-generated'][-n_periods:].dropna()
+    train_predicted = sarima_model_fit.fittedvalues[-n_periods:]
+
+    mae, mse, rmse, r2 = calculate_accuracy(train_actual, train_predicted)
+    st.subheader("📊 Model Accuracy (SARIMA)")
+    st.write(f"Mean Absolute Error (MAE): {mae:.2f}")
+    st.write(f"Mean Squared Error (MSE): {mse:.2f}")
+    st.write(f"Root Mean Squared Error (RMSE): {rmse:.2f}")
+    st.write(f"R-Squared (R2): {r2:.2f}")
 
     # Plot Forecast (Line Plot with Predictions)
     st.subheader("📈 Future Power Prediction (SARIMA)")
