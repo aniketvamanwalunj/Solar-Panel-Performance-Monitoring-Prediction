@@ -5,3 +5,6 @@ seaborn
 streamlit
 statsmodels
 scikit-learn
+plotly
+xgboost
+lightgbm
